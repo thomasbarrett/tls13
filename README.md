@@ -72,3 +72,42 @@ TLS 1.2 middlebox compatability.
 ## Alert Protocol
 - [ ] R Alert message (error)
 - [ ] W Alert message (error)
+
+# Implementation Details
+## ClientHello, ServerHello
+In both ClientHello and SeverHello, we correctly signal our very limited support
+for key-share protocols, signature schemes, and cipher suites. Notably, we only
+support X25519 key-share protocol. The ECDSA_SECP256R1_SHA256 signature scheme, and
+the TLS_CHACHA20_POLY1305_SHA256 cipher-suite (We don't actually have a working
+implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet). 
+
+- supported versions:
+    - TLS 1.3
+- cipher suites:
+    - TLS_CHACHA20_POLY1305_SHA256
+- signature algorithms:
+    - ECDSA_SECP256R1_SHA256
+- supported groups
+    - X25519
+    - SECP256R1
+- key share
+    - X25519
+
+# Planned Implementation Timeline:
+- [x] X25519 edDHE.
+- [ ] TLS_CHACHA20_POLY1305_SHA256 AEAD.
+- [ ] R/W TLSCiphertext records
+- [ ] R/W Certificate records
+- [ ] R/W CertificateVerify records
+- [ ] R/W Finished records
+- [ ] R/W x509 certificates
+- [ ] SECP256R1_SHA256 ECDSA
+- [ ] x509 validation
+- [ ] Protocol Correctness / Error Handling.
+- [ ] Hello World HTTPS server.
+- [ ] Scaling: Asynchronous I/O
+
+# Optional Extensions
+- [ ] OCSP stapling.
+- [ ] PSK support.
+- [ ] MTLS support.
