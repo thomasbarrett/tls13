@@ -109,9 +109,9 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [ ] x509 validation
 - [ ] Protocol Correctness / Error Handling.
 - [ ] Hello World HTTPS server.
-- [ ] Scaling: Asynchronous I/O
 
-# Optional Extensions
+# Optional Optimizing Extensions
+- [ ] Scaling: Asynchronous I/O
 - [ ] OCSP stapling.
 - [ ] PSK support.
 - [ ] MTLS support.
