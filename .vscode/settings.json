@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "stdio.h": "c",
+        "netdb.h": "c",
+        "record.h": "c",
+        "buffer.h": "c",
+        "socket.h": "c",
+        "in.h": "c",
+        "inet.h": "c",
+        "unistd.h": "c",
+        "__locale": "c",
+        "__string": "c",
+        "string": "c",
+        "string_view": "c",
+        "array": "c",
+        "iterator": "c",
+        "vector": "c"
+    }
+}
