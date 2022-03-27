@@ -94,7 +94,7 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
     - X25519
 
 # Planned Implementation Timeline:
-- [x] R/W TLSCiphertext records
+- [x] R/W TLSPlaintext records
 - [x] R/W HelloClient
 - [x] R HelloServer
 - [ ] W HelloServer
