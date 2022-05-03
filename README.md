@@ -106,6 +106,8 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [ ] R/W CertificateVerify records
 - [ ] R/W Finished records
 - [ ] Hello World HTTPS server.
+
+# Optional Correctness Extensions
 - [ ] Protocol Correctness / Error Handling.
 - [ ] R/W x509 certificates
 - [ ] SECP256R1_SHA256 ECDSA
