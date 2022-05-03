@@ -99,8 +99,12 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [x] R HelloServer
 - [x] W HelloServer
 - [x] X25519 edDHE
+- [x] CHACHA20 Stream Cipher
+- [x] POLY1305 MAC
 - [x] TLS_CHACHA20_POLY1305_SHA256 AEAD.
-- [x] HKDF (Hashed Key Derivation Function)
+- [x] SHA256 Hash function.
+- [x] SHA256-HMAC MAC. 
+- [x] SHA256 HKDF (Hashed Key Derivation Function)
 - [ ] Handshake Keys Calculation
 - [ ] R/W TLSCiphertext records
 - [ ] R/W Certificate records
