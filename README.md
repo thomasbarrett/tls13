@@ -97,19 +97,19 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [x] R/W TLSPlaintext records
 - [x] R/W HelloClient
 - [x] R HelloServer
-- [ ] W HelloServer
+- [x] W HelloServer
 - [x] X25519 edDHE
-- [ ] TLS_CHACHA20_POLY1305_SHA256 AEAD.
-- [ ] HKDF (Hashed Key Derivation Function)
+- [x] TLS_CHACHA20_POLY1305_SHA256 AEAD.
+- [x] HKDF (Hashed Key Derivation Function)
 - [ ] R/W TLSCiphertext records
 - [ ] R/W Certificate records
 - [ ] R/W CertificateVerify records
 - [ ] R/W Finished records
+- [ ] Hello World HTTPS server.
+- [ ] Protocol Correctness / Error Handling.
 - [ ] R/W x509 certificates
 - [ ] SECP256R1_SHA256 ECDSA
 - [ ] x509 validation
-- [ ] Protocol Correctness / Error Handling.
-- [ ] Hello World HTTPS server.
 
 # Optional Optimizing Extensions
 - [ ] Scaling: Asynchronous I/O
