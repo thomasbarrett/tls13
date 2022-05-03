@@ -12,6 +12,7 @@
 
 #include <record.h>
 #include <hmac.h>
+#include <x25519.h>
 
 void generate_random(buffer_t buf) {
     FILE *rnd = fopen("/dev/urandom", "r");
