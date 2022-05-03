@@ -101,10 +101,12 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [x] X25519 edDHE
 - [x] TLS_CHACHA20_POLY1305_SHA256 AEAD.
 - [x] HKDF (Hashed Key Derivation Function)
+- [ ] Handshake Keys Calculation
 - [ ] R/W TLSCiphertext records
 - [ ] R/W Certificate records
 - [ ] R/W CertificateVerify records
 - [ ] R/W Finished records
+- [ ] Application Keys Calculation
 - [ ] Hello World HTTPS server.
 
 # Optional Correctness Extensions
