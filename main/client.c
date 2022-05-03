@@ -211,7 +211,7 @@ void func(int sockfd) {
     buffer = buffer_slice(buffer, n_read);
     assert(buffer.length == 0);
 }
-   
+
 int main() {
     int sockfd;
     struct sockaddr_in servaddr;

@@ -16,6 +16,8 @@
         "iterator": "c",
         "vector": "c",
         "sha256.h": "c",
-        "hmac.h": "c"
+        "hmac.h": "c",
+        "stdint.h": "c",
+        "hkdf.h": "c"
     }
 }

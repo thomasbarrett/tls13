@@ -7,15 +7,15 @@ OBJ_FILES = $(addprefix obj/,$(FILES:=.o))
 TEST_FILES = $(join $(dir $(addprefix bin/tests/,$(FILES))), $(addprefix test_,$(notdir $(FILES))))
 
 .PHONY: all
-all: bin/server bin/client $(TESTS)
-	
+all: bin/server bin/client $(TEST_FILES)
+
 .PHONY: clean
 clean:
 	@rm -rf obj
 	@rm -rf bin
 
 .PHONY: build
-build: $(TESTS) $(OBJ_FILES)
+build: $(TEST_FILES) $(OBJ_FILES)
 
 obj/%.o: src/%.c
 	@mkdir -p $(dir $@)
