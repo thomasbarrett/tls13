@@ -15,6 +15,7 @@
 #include <record.h>
 #include <assert.h>
 #include <hmac.h>
+#include <x25519.h>
 
 void generate_random(buffer_t buf) {
     FILE *rnd = fopen("/dev/urandom", "r");
@@ -23,39 +24,24 @@ void generate_random(buffer_t buf) {
     assert(n_read == 1);
 }
 
-void send_server_hello(client_hello_t *client_msg, int fd) {
-    handshake_message_t handshake_message;
-    handshake_message.msg_type = SERVER_HELLO;
-    server_hello_t *server_hello = &handshake_message.server_hello;
-    server_hello->legacy_version = 0x0303;
-    generate_random((buffer_t){32, server_hello->random});
-    server_hello->legacy_session_id_echo_len = client_msg->legacy_session_id_len;
-    memcpy(server_hello->legacy_session_id_echo, client_msg->legacy_session_id, client_msg->legacy_session_id_len);
-    server_hello->legacy_compression_method = 0;
-    server_hello->cipher_suite = TLS_CHACHA20_POLY1305_SHA256;
-    server_hello->extensions_len = 0;
-
-    dyn_buf_t buf = dyn_buf_create(1024);
-    handshake_message_write(&buf, &handshake_message);
-    
-    tls_plaintext_t record;
-    record.type = CONTENT_TYPE_HANDSHAKE;
-    record.legacy_record_version = TLS_10;
-    record.length = buf.length;
-    record.fragment = buf.data;
-
-    dyn_buf_t buff = dyn_buf_create(buf.length + 7);
-    tls_plaintext_write(&buff, &record);
-    write(fd, buff.data, buff.length);
-    
-    printf("\n>>> HANDSHAKE [%zu] ", buff.length);
-    uint8_t hash[32];
-    sha256(buf.data, buf.length, hash);
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", hash[i]);
-    }
-    printf("\n");
+uint32_t swap_uint32(uint32_t val) {
+    val = ((val << 8) & 0xFF00FF00 ) | ((val >> 8) & 0xFF00FF ); 
+    return (val << 16) | (val >> 16);
 }
+
+
+void bytes_to_uint(uint8_t *bytes, uint_t *n) {
+    for (int i = 0; i < N; i++) {
+        n[i] = ntohl(swap_uint32(*(uint_t*)(bytes + i * sizeof(uint_t))));
+    }
+}
+
+void uint_to_bytes(uint_t *n, uint8_t *bytes) {
+    for (int i = 0; i < N; i++) {
+        *(uint_t*)(bytes + i * sizeof(uint_t)) = swap_uint32(htonl(n[i]));
+    }
+}
+
 
 // Function designed for chat between client and server.
 void func(int fd) {
@@ -66,10 +52,10 @@ void func(int fd) {
     assert(n_read > 0);
 
     printf("<<< %s [%zu] ", content_type_str(record.type), n_read);
-    uint8_t hash[32];
-    sha256(record.fragment, record.length, hash);
+    uint8_t hash1[32];
+    sha256(record.fragment, record.length, hash1);
     for (size_t i = 0; i < 32; i++) {
-        printf("%02x", hash[i]);
+        printf("%02x", hash1[i]);
     }
     printf("\n");
 
@@ -99,6 +85,8 @@ void func(int fd) {
         printf("%zu: %d \n", i, client_hello.legacy_compression_methods[i]);
     }
     printf("extensions (%zu): \n", client_hello.extensions_len);
+        x25519_element_t peer_pk = {0};
+    peer_pk.z[0] = 1;
     for (size_t i = 0; i < client_hello.extensions_len; i++) {
         extension_t *ext = &client_hello.extensions[i];
         printf("%zu: %d: %s %zu\n", i, ext->extension_type, extension_type_str(ext->extension_type), ext->extension_data_len);
@@ -139,6 +127,7 @@ void func(int fd) {
                 printf("  - %s: ", supported_group_str(e->group));
                 switch (e->group) {
                 case X25519:
+                    bytes_to_uint(e->x25519, peer_pk.x);
                     for (size_t i = 0; i < 32; i++) {
                         printf("%02x", e->x25519[i]);
                     }
@@ -151,7 +140,61 @@ void func(int fd) {
         }
     }
 
-    send_server_hello(&client_hello, fd);
+
+ handshake_message_t handshake_message;
+    handshake_message.msg_type = SERVER_HELLO;
+    server_hello_t *server_hello = &handshake_message.server_hello;
+    server_hello->legacy_version = 0x0303;
+    generate_random((buffer_t){32, server_hello->random});
+    server_hello->legacy_session_id_echo_len = client_hello.legacy_session_id_len;
+    memcpy(server_hello->legacy_session_id_echo, client_hello.legacy_session_id, client_hello.legacy_session_id_len);
+    server_hello->legacy_compression_method = 0;
+    server_hello->cipher_suite = TLS_CHACHA20_POLY1305_SHA256;
+    server_hello->extensions_len = 0;
+
+    /* append KEY_SHARE extension to the message */
+    uint_t sk[8] = {0};
+    {
+    extension_t *ext = &server_hello->extensions[server_hello->extensions_len];
+    ext->extension_type = KEY_SHARE;
+    key_share_entry_t *entry = &ext->server_key_share.server_share;
+    entry->group = X25519;
+    // x25519 base element
+    x25519_element_t base = {0};
+    base.x[0] = 9;
+    base.z[0] = 1;
+    uint8_t sk_bytes[32];
+    generate_random((buffer_t){32, sk_bytes});
+    x25519_clamp(sk_bytes);
+    bytes_to_uint(sk_bytes, sk);
+    uint_t pk[2 * N] = {0};
+    x25519_scalar_mult(sk, &base, pk);
+    uint8_t pk_bytes[32] = {0};
+    uint_to_bytes(pk, pk_bytes);
+    memcpy(entry->x25519, pk_bytes, 32);
+    server_hello->extensions_len += 1;
+    }
+
+    dyn_buf_t buf = dyn_buf_create(1024);
+    handshake_message_write(&buf, &handshake_message);
+    
+    tls_plaintext_t record1;
+    record1.type = CONTENT_TYPE_HANDSHAKE;
+    record1.legacy_record_version = TLS_10;
+    record1.length = buf.length;
+    record1.fragment = buf.data;
+
+    dyn_buf_t buff = dyn_buf_create(buf.length + 7);
+    tls_plaintext_write(&buff, &record1);
+    write(fd, buff.data, buff.length);
+    
+    printf("\n>>> HANDSHAKE [%zu] ", buff.length);
+    uint8_t hash[32];
+    sha256(buf.data, buf.length, hash);
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", hash[i]);
+    }
+    printf("\n");
 
     printf("\n-------- HANDSHAKE KEYS --------\n");
     uint8_t early_secret[32];
@@ -169,6 +212,15 @@ void func(int fd) {
     }
     printf("\n");
 
+    uint_t shared_secret[16] = {0};
+    x25519_scalar_mult(sk, &peer_pk, shared_secret);
+    uint8_t shared_secret_bytes[32] = {0};
+    uint_to_bytes(shared_secret, shared_secret_bytes);
+    printf("shared_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", shared_secret_bytes[i]);
+    }
+
     printf("\n--------------------------------\n");
 
 }
@@ -179,6 +231,8 @@ int main()
     int sockfd, connfd, len;
     struct sockaddr_in servaddr, cli;
    
+       x25519_init();
+
     // socket create and verification
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {

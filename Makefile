@@ -37,11 +37,11 @@ bin/tests/%: tests/%.c $(OBJ_FILES) $(MODULES_OBJ)
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
 
-bin/server: main/server.c $(OBJ_FILES)
+bin/server: main/server.c $(OBJ_FILES) $(MODULES_OBJ)
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
 
-bin/client: main/client.c $(OBJ_FILES)
+bin/client: main/client.c $(OBJ_FILES) $(MODULES_OBJ)
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
 

@@ -21,6 +21,24 @@ void generate_random(buffer_t buf) {
     assert(n_read == 1);
 }
 
+uint32_t swap_uint32(uint32_t val) {
+    val = ((val << 8) & 0xFF00FF00 ) | ((val >> 8) & 0xFF00FF ); 
+    return (val << 16) | (val >> 16);
+}
+
+
+void bytes_to_uint(uint8_t *bytes, uint_t *n) {
+    for (int i = 0; i < N; i++) {
+        n[i] = ntohl(swap_uint32(*(uint_t*)(bytes + i * sizeof(uint_t))));
+    }
+}
+
+void uint_to_bytes(uint_t *n, uint8_t *bytes) {
+    for (int i = 0; i < N; i++) {
+        *(uint_t*)(bytes + i * sizeof(uint_t)) = swap_uint32(htonl(n[i]));
+    }
+}
+
 void func(int sockfd) {
 
     handshake_message_t handshake_message;
@@ -74,19 +92,26 @@ void func(int sockfd) {
     }
 
     /* append KEY_SHARE extension to the message */
+    uint32_t sk[8] = {0};
     {
     extension_t *ext = &client_hello->extensions[client_hello->extensions_len];
     ext->extension_type = KEY_SHARE;
     ext->client_key_share.client_shares_len = 1;
     key_share_entry_t *entry = &ext->client_key_share.client_shares[0];
     entry->group = X25519;
-    uint8_t pk[32] = {
-        0x64, 0xa7, 0xf5, 0x89, 0x7e, 0x94, 0x23, 0x63,
-        0x59, 0xe7, 0xa6, 0x39, 0xfc, 0x87, 0x12, 0x41,
-        0x0e, 0x6b, 0x5f, 0x04, 0x0e, 0x90, 0xa9, 0x32,
-        0x23, 0x8f, 0xd0, 0xd8, 0x1a, 0xfc, 0x69, 0x3e
-    };
-    memcpy(entry->x25519, pk, 32);
+    // x25519 base element
+    x25519_element_t base = {0};
+    base.x[0] = 9;
+    base.z[0] = 1;
+    uint8_t sk_bytes[32];
+    generate_random((buffer_t){32, sk_bytes});
+    x25519_clamp(sk_bytes);
+    bytes_to_uint(sk_bytes, sk);
+    uint_t pk[2 * N] = {0};
+    x25519_scalar_mult(sk, &base, pk);
+    uint8_t pk_bytes[32] = {0};
+    uint_to_bytes(pk, pk_bytes);
+    memcpy(entry->x25519, pk_bytes, 32);
     client_hello->extensions_len += 1;
     }
 
@@ -147,6 +172,8 @@ void func(int sockfd) {
     printf("    cipher_suite: %s\n", cipher_suite_str(server_hello.cipher_suite));
     printf("    legacy_compression_method: %d\n", server_hello.legacy_compression_method);
     printf("    extensions:\n");
+       x25519_element_t peer_pk = {0};
+    peer_pk.z[0] = 1;
     for (size_t i = 0; i < server_hello.extensions_len; i++) {
         extension_t *ext = &server_hello.extensions[i];
         printf("    - %-20s [%03zu bytes]\n", extension_type_str(ext->extension_type), ext->extension_data_len);
@@ -181,21 +208,21 @@ void func(int sockfd) {
                 printf("  - %04x: %s\n", v, protocol_version_str(v));
             }
             break;
-        case KEY_SHARE:
-            for (size_t i = 0; i < ext->client_key_share.client_shares_len; i++) {
-                key_share_entry_t *e = &ext->client_key_share.client_shares[i];
-                printf("  - %s: ", supported_group_str(e->group));
-                switch (e->group) {
-                case X25519:
-                    for (size_t i = 0; i < 32; i++) {
-                        printf("%02x", e->x25519[i]);
-                    }
-                    printf("\n");
-                    break;
-                default:
-                    printf("NOT IMPLEMENTED\n");
+        case KEY_SHARE:{
+            key_share_entry_t *e = &ext->server_key_share.server_share;
+            printf("      - %s: ", supported_group_str(e->group));
+            switch (e->group) {
+            case X25519:
+                bytes_to_uint(e->x25519, peer_pk.x);
+                for (size_t i = 0; i < 32; i++) {
+                    printf("%02x", e->x25519[i]);
                 }
+                printf("\n");
+                break;
+            default:
+                printf("NOT IMPLEMENTED\n");
             }
+        }
         }
     }
 
@@ -214,6 +241,18 @@ void func(int sockfd) {
         printf("%02x", empty_hash[i]);
     }
     printf("\n");
+
+    
+    // Compute shared_secret
+
+    uint_t shared_secret[16] = {0};
+    x25519_scalar_mult(sk, &peer_pk, shared_secret);
+    uint8_t shared_secret_bytes[32] = {0};
+    uint_to_bytes(shared_secret, shared_secret_bytes);
+    printf("shared_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", shared_secret_bytes[i]);
+    }
 
     printf("\n--------------------------------\n");
      /*
@@ -252,6 +291,8 @@ int main() {
     int sockfd;
     struct sockaddr_in servaddr;
    
+       x25519_init();
+
     // socket create and verification
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {

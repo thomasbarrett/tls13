@@ -427,7 +427,7 @@ int64_t extension_parse(buffer_t buffer, handshake_type_t msg_type, extension_t 
                 len2 = client_key_share_parse((buffer_t){len, iter.data}, &ext->client_key_share);
                 break;
             case SERVER_HELLO:
-                printf("info: skipping extension %s\n", extension_type_str(ext->extension_type));
+                len2 = key_share_entry_parse((buffer_t){len, iter.data}, &ext->server_key_share.server_share);
                 break;
         }
         break;
@@ -620,7 +620,7 @@ void ec_point_format_list_write(dyn_buf_t *buf, ec_point_format_list_t *lst) {
     }
 }
 
-void extension_write(dyn_buf_t *buf, extension_t *ext) {
+void extension_write(dyn_buf_t *buf, handshake_type_t msg_type, extension_t *ext) {
     uint16_t extension_type = htons(ext->extension_type);
     dyn_buf_write(buf, &extension_type, sizeof(uint16_t));
 
@@ -635,7 +635,13 @@ void extension_write(dyn_buf_t *buf, extension_t *ext) {
         signature_scheme_list_write(buf, &ext->signature_scheme_list);
         break;
     case KEY_SHARE:
-        client_key_share_write(buf, &ext->client_key_share);
+        if (msg_type == CLIENT_HELLO) {
+            client_key_share_write(buf, &ext->client_key_share);
+        } else if (msg_type == SERVER_HELLO) {
+            key_share_entry_write(buf, &ext->server_key_share.server_share);
+        } else {
+            assert(0 && "not implemented");
+        }
         break;
     case SUPPORTED_GROUPS:
         supported_group_list_write(buf, &ext->supported_group_list);
@@ -677,7 +683,7 @@ void client_hello_write(dyn_buf_t *buf, client_hello_t *client_hello) {
     size_t extensions_start = buf->length;
     for (size_t i = 0; i < client_hello->extensions_len; i++) {
         extension_t *ext = &client_hello->extensions[i];
-        extension_write(buf, ext);
+        extension_write(buf, CLIENT_HELLO, ext);
     }
     size_t extensions_end = buf->length;
     *extensions_len = htons(extensions_end - extensions_start);
@@ -703,7 +709,7 @@ void server_hello_write(dyn_buf_t *buf, server_hello_t *server_hello) {
     size_t extensions_start = buf->length;
     for (size_t i = 0; i < server_hello->extensions_len; i++) {
         extension_t *ext = &server_hello->extensions[i];
-        extension_write(buf, ext);
+        extension_write(buf, SERVER_HELLO, ext);
     }
     size_t extensions_end = buf->length;
     *extensions_len = htons(extensions_end - extensions_start);

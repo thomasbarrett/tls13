@@ -184,6 +184,10 @@ typedef struct {
 } client_key_share_t;
 
 typedef struct {
+    key_share_entry_t server_share;
+} server_key_share_t;
+
+typedef struct {
     uint16_t extension_type;
     size_t extension_data_len;
     union {
@@ -193,6 +197,7 @@ typedef struct {
         signature_scheme_list_t signature_scheme_list;
         client_supported_version_t client_supported_version;
         client_key_share_t client_key_share;
+        server_key_share_t server_key_share;
     };
 } extension_t;
 
