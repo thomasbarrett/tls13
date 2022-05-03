@@ -391,4 +391,6 @@ int64_t server_hello_parse(buffer_t buffer, server_hello_t *res);
 
 void client_hello_write(dyn_buf_t *buf, client_hello_t *client_hello);
 
+void server_hello_write(dyn_buf_t *buf, server_hello_t *server_hello);
+
 #endif /* TLS13_RECORD */

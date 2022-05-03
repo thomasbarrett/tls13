@@ -6,33 +6,79 @@
 #include <sys/socket.h>
 #include<unistd.h>
 #include <sys/types.h>
+#include <sha256.h>
+
 #define BUFFER_SIZE 1024
 #define PORT 8080
 #define SA struct sockaddr
    
 #include <record.h>
 #include <assert.h>
+#include <hmac.h>
+
+void generate_random(buffer_t buf) {
+    FILE *rnd = fopen("/dev/urandom", "r");
+    assert(rnd != NULL);
+    size_t n_read = fread(buf.data, buf.length, 1, rnd);
+    assert(n_read == 1);
+}
+
+void send_server_hello(client_hello_t *client_msg, int fd) {
+    handshake_message_t handshake_message;
+    handshake_message.msg_type = SERVER_HELLO;
+    server_hello_t *server_hello = &handshake_message.server_hello;
+    server_hello->legacy_version = 0x0303;
+    generate_random((buffer_t){32, server_hello->random});
+    server_hello->legacy_session_id_echo_len = client_msg->legacy_session_id_len;
+    memcpy(server_hello->legacy_session_id_echo, client_msg->legacy_session_id, client_msg->legacy_session_id_len);
+    server_hello->legacy_compression_method = 0;
+    server_hello->cipher_suite = TLS_CHACHA20_POLY1305_SHA256;
+    server_hello->extensions_len = 0;
+
+    dyn_buf_t buf = dyn_buf_create(1024);
+    handshake_message_write(&buf, &handshake_message);
+    
+    tls_plaintext_t record;
+    record.type = CONTENT_TYPE_HANDSHAKE;
+    record.legacy_record_version = TLS_10;
+    record.length = buf.length;
+    record.fragment = buf.data;
+
+    dyn_buf_t buff = dyn_buf_create(buf.length + 7);
+    tls_plaintext_write(&buff, &record);
+    write(fd, buff.data, buff.length);
+    
+    printf("\n>>> HANDSHAKE [%zu] ", buff.length);
+    uint8_t hash[32];
+    sha256(buf.data, buf.length, hash);
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", hash[i]);
+    }
+    printf("\n");
+}
 
 // Function designed for chat between client and server.
 void func(int fd) {
     uint8_t data[BUFFER_SIZE];
     size_t n_read = read(fd, data, BUFFER_SIZE);
-    printf("%zu read\n", n_read);
     tls_plaintext_t record = {0};
     n_read = tls_plaintext_parse((buffer_t){n_read, data}, &record);
     assert(n_read > 0);
-    printf("%zu consumed\n\n", n_read);
-    printf("%s\n", content_type_str(record.type));
-    printf("%04x\n", record.legacy_record_version);
-    printf("%d\n", record.length);
-    
+
+    printf("<<< %s [%zu] ", content_type_str(record.type), n_read);
+    uint8_t hash[32];
+    sha256(record.fragment, record.length, hash);
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", hash[i]);
+    }
+    printf("\n");
+
     handshake_message_t msg = {0};
     n_read = handshake_message_parse((buffer_t){record.length, record.fragment}, &msg);
     assert(msg.msg_type == CLIENT_HELLO);
 
     client_hello_t client_hello = msg.client_hello;
-    printf("%lld consumed\n", (int64_t) n_read);
-    printf("%04x\n", client_hello.legacy_version);
+    printf("legacy_version: %04x\n", client_hello.legacy_version);
     printf("random (32): ");
     for (size_t i = 0; i < 32; i++) {
         printf("%02x", client_hello.random[i]);
@@ -104,8 +150,29 @@ void func(int fd) {
             }
         }
     }
+
+    send_server_hello(&client_hello, fd);
+
+    printf("\n-------- HANDSHAKE KEYS --------\n");
+    uint8_t early_secret[32];
+    hmac_sha256_sign(NULL, 0, NULL, 0, early_secret);
+    printf("early_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", early_secret[i]);
+    }
+    printf("\n");
+    uint8_t empty_hash[32];
+    sha256(NULL, 0, empty_hash);
+    printf("empty_hash: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", empty_hash[i]);
+    }
+    printf("\n");
+
+    printf("\n--------------------------------\n");
+
 }
-   
+
 // Driver function
 int main()
 {

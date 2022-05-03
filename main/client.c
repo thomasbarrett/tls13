@@ -8,8 +8,10 @@
 #define MAX 80
 #define PORT 8080
 #define SA struct sockaddr
+#include <sha256.h>
 
 #include <record.h>
+#include <hmac.h>
 
 void generate_random(buffer_t buf) {
     FILE *rnd = fopen("/dev/urandom", "r");
@@ -101,6 +103,14 @@ void func(int sockfd) {
     write(sockfd, buff.data, buff.length);
     printf("message of length %zu sent\n", buff.length);
     
+    printf("\n>>> %s [%zu] ", content_type_str(record.type), buff.length);
+    uint8_t hash0[32];
+    sha256(buf.data, buf.length, hash0);
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", hash0[i]);
+    }
+    printf("\n");
+
     uint8_t read_buff[1024] = {0};
     size_t n_read = read(sockfd, read_buff, sizeof(read_buff));
     buffer_t buffer = {n_read, read_buff};
@@ -108,8 +118,14 @@ void func(int sockfd) {
     tls_plaintext_t record1 = {0};
     n_read = tls_plaintext_parse(buffer, &record1);
     assert(n_read > 0);
-    printf("<<< %s [%zu] \n", content_type_str(record1.type), n_read);
-
+    printf("<<< %s [%zu] ", content_type_str(record1.type), n_read);
+    uint8_t hash[32];
+    sha256(record1.fragment, record1.length, hash);
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", hash[i]);
+    }
+    printf("\n");
+    
     handshake_message_t msg = {0};
     size_t n_read2 = handshake_message_parse((buffer_t){record1.length, record1.fragment}, &msg);
     assert(n_read2 == record1.length);
@@ -181,12 +197,31 @@ void func(int sockfd) {
             }
         }
     }
-    
+
+   printf("\n-------- HANDSHAKE KEYS --------\n");
+    uint8_t early_secret[32];
+    hmac_sha256_sign(NULL, 0, NULL, 0, early_secret);
+    printf("early_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", early_secret[i]);
+    }
+    printf("\n");
+    uint8_t empty_hash[32];
+    sha256(NULL, 0, empty_hash);
+    printf("empty_hash: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", empty_hash[i]);
+    }
+    printf("\n");
+
+    printf("\n--------------------------------\n");
+     /*
 
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record2 = {0};
     n_read = tls_plaintext_parse(buffer, &record2);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record2.type), n_read);
+
 
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record3 = {0};
@@ -209,7 +244,7 @@ void func(int sockfd) {
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record6.type), n_read);
 
     buffer = buffer_slice(buffer, n_read);
-    assert(buffer.length == 0);
+    assert(buffer.length == 0);*/
 }
 
 int main() {

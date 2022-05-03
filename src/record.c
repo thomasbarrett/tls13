@@ -182,6 +182,9 @@ void handshake_message_write(dyn_buf_t *buf, handshake_message_t *msg) {
         case CLIENT_HELLO:
             client_hello_write(buf, &msg->client_hello);
             break;
+        case SERVER_HELLO:
+            server_hello_write(buf, &msg->server_hello);
+            break;
         default:
             assert(0 && "unsupported");
     }
@@ -679,4 +682,29 @@ void client_hello_write(dyn_buf_t *buf, client_hello_t *client_hello) {
     size_t extensions_end = buf->length;
     *extensions_len = htons(extensions_end - extensions_start);
 
+}
+
+void server_hello_write(dyn_buf_t *buf, server_hello_t *server_hello) {
+    dyn_buf_write(buf, &server_hello->legacy_version, sizeof(uint16_t));
+    dyn_buf_write(buf, server_hello->random, 32);
+    dyn_buf_write(buf, &server_hello->legacy_session_id_echo_len, 1);
+    dyn_buf_write(buf, server_hello->legacy_session_id_echo, server_hello->legacy_session_id_echo_len);
+    
+    /* write cipher_suite  */
+    uint16_t cipher_suite = htons(server_hello->cipher_suite);
+    dyn_buf_write(buf, &cipher_suite, sizeof(uint16_t));
+
+    /* write legacy_compression_method */
+    dyn_buf_write(buf, &server_hello->legacy_compression_method, 1);
+
+    /* write extensions vector */
+    uint16_t *extensions_len = (uint16_t*) (buf->data + buf->length);
+    dyn_buf_write(buf, &(uint16_t){0}, sizeof(uint16_t));
+    size_t extensions_start = buf->length;
+    for (size_t i = 0; i < server_hello->extensions_len; i++) {
+        extension_t *ext = &server_hello->extensions[i];
+        extension_write(buf, ext);
+    }
+    size_t extensions_end = buf->length;
+    *extensions_len = htons(extensions_end - extensions_start);
 }
