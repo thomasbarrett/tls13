@@ -172,7 +172,7 @@ void func(int sockfd) {
     printf("    cipher_suite: %s\n", cipher_suite_str(server_hello.cipher_suite));
     printf("    legacy_compression_method: %d\n", server_hello.legacy_compression_method);
     printf("    extensions:\n");
-       x25519_element_t peer_pk = {0};
+    x25519_element_t peer_pk = {0};
     peer_pk.z[0] = 1;
     for (size_t i = 0; i < server_hello.extensions_len; i++) {
         extension_t *ext = &server_hello.extensions[i];
