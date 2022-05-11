@@ -9,7 +9,7 @@ VERSION = 0.1.0
 RWILDCARD = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
 # module variables
-MODULES := git@github.com:thomasbarrett/uint.git@v0.1.0
+MODULES := git@github.com:thomasbarrett/uint.git@v0.1.0 git@github.com:thomasbarrett/chacha20.git@v0.1.0
 MODULES_REPOSITORY := $(addprefix git@, $(foreach dep, $(MODULES), $(word 2, $(subst @, ,$(dep)))))
 MODULES_VERSION := $(foreach dep, $(MODULES), $(word 3, $(subst @, ,$(dep))))
 MODULES_MAJOR_VERSION := $(foreach dep, $(MODULES_VERSION), $(word 1, $(subst ., ,$(dep))))
@@ -18,7 +18,6 @@ MODULES_ROOT := $(foreach dep, $(MODULES_REPOSITORY), $(word 1, $(subst ., ,$(wo
 MODULES_PATH := $(addprefix $(MODULES_PREFIX), $(join $(MODULES_ROOT), $(addprefix /,$(MODULES_MAJOR_VERSION))))
 MODULES_INCLUDE := $(foreach p, $(MODULES_PATH), -I$(p:=/include))
 MODULES_OBJ = $(foreach p, $(MODULES_PATH), $(addprefix $p/, $(shell $(MAKE) object-files -C $p 2>/dev/null)))
-
 .PHONY: all 
 all: bin/server bin/client $(TEST_FILES) $(OBJ_FILES)
 
@@ -73,7 +72,7 @@ install-deps:
 		if [ ! -d "$${M_PATH}" ]; then \
 			printf "[ %s ] %s\n" $${M_VERSION} $${M_ROOT}; \
  			git clone "$${M_REPOSITORY}" --branch $${M_VERSION} --single-branch $${M_PATH} 2> /dev/null; \
-		fi \
+		fi; \
 	)
 
 # The build-deps target builds all dependency module makefiles 

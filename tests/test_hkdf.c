@@ -29,7 +29,7 @@ void test_hkdf_expand() {
         0x58, 0x65
     };
     const uint8_t okm[42]; 
-    hkdf_expand(prk, sizeof(prk), info, sizeof(info), sizeof(okm), okm);
+    hkdf_expand((buffer_t){sizeof(prk), prk}, (buffer_t){sizeof(info), info}, (buffer_t){sizeof(okm), okm});
     assert(memcmp(okm, okm_expected, sizeof(okm)) == 0);
 }
 

@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <hmac.h>
 #include <x25519.h>
+#include <hkdf.h>
 
 void generate_random(buffer_t buf) {
     FILE *rnd = fopen("/dev/urandom", "r");
@@ -220,7 +221,115 @@ void func(int fd) {
     for (size_t i = 0; i < 32; i++) {
         printf("%02x", shared_secret_bytes[i]);
     }
+    printf("\n");
+    
+    uint8_t derived_secret[32] = {0};
+    hkdf_expand_label(
+        (buffer_t){32, early_secret}, 
+        "derived",
+        (buffer_t){32, empty_hash},
+        (buffer_t){32, derived_secret}
+    );
+    printf("derived_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", derived_secret[i]);
+    }
+    printf("\n");
 
+    uint8_t handshake_secret[32];
+    hmac_sha256_sign(derived_secret, 32, shared_secret_bytes, 32, handshake_secret);
+    printf("handshake_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", handshake_secret[i]);
+    }
+    printf("\n");
+
+    uint8_t hello_hash[32];
+    dyn_buf_t hello = dyn_buf_create(buf.length + record.length);
+    dyn_buf_write(&hello, record.fragment, record.length);
+    dyn_buf_write(&hello, buf.data, buf.length);
+    sha256(hello.data, hello.length, hello_hash);
+
+    uint8_t client_secret[32] = {0};
+    hkdf_expand_label(
+        (buffer_t){32, handshake_secret}, 
+        "c hs traffic",
+        (buffer_t){32, hello_hash},
+        (buffer_t){32, client_secret}
+    );
+    printf("client_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", client_secret[i]);
+    }
+    printf("\n");
+
+
+    uint8_t server_secret[32] = {0};
+    hkdf_expand_label(
+        (buffer_t){32, handshake_secret}, 
+        "s hs traffic",
+        (buffer_t){32, hello_hash},
+        (buffer_t){32, server_secret}
+    );
+    printf("server_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", server_secret[i]);
+    }
+    printf("\n");
+
+    uint8_t client_handshake_key[32] = {0};
+    hkdf_expand_label(
+        (buffer_t){32, client_secret}, 
+        "key",
+        (buffer_t){0, NULL},
+        (buffer_t){32, client_handshake_key}
+    );
+    printf("client_handshake_key: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", client_handshake_key[i]);
+    }
+    printf("\n");
+
+
+    uint8_t server_handshake_key[32] = {0};
+    hkdf_expand_label(
+        (buffer_t){32, server_secret}, 
+        "key",
+        (buffer_t){0, NULL},
+        (buffer_t){32, server_handshake_key}
+    );
+    printf("server_handshake_key: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", server_handshake_key[i]);
+    }
+    printf("\n");
+
+    uint8_t client_handshake_iv[12] = {0};
+    hkdf_expand_label(
+        (buffer_t){32, client_secret}, 
+        "iv",
+        (buffer_t){0, NULL},
+        (buffer_t){12, client_handshake_iv}
+    );
+    printf("client_handshake_iv: ");
+    for (size_t i = 0; i < 12; i++) {
+        printf("%02x", client_handshake_iv[i]);
+    }
+    printf("\n");
+
+    uint8_t server_handshake_iv[12] = {0};
+    hkdf_expand_label(
+        (buffer_t){32, server_secret}, 
+        "iv",
+        (buffer_t){0, NULL},
+        (buffer_t){12, server_handshake_iv}
+    );
+    printf("server_handshake_iv: ");
+    for (size_t i = 0; i < 12; i++) {
+        printf("%02x", server_handshake_iv[i]);
+    }
+    printf("\n");
+    
     printf("\n--------------------------------\n");
 
 }
