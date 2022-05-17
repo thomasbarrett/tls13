@@ -456,6 +456,61 @@ void func(int sockfd) {
     buffer = buffer_slice(buffer, n_read);
     assert(buffer.length == 0);
 
+
+    tls_plaintext_t record7;
+    record7.type = CONTENT_TYPE_CHANGE_CIPHER_CPEC;
+    record7.legacy_record_version = TLS_12;
+    record7.length = 1;
+    record7.fragment = &(uint8_t){1};
+
+    buff = dyn_buf_create(6);
+    tls_plaintext_write(&buff, &record7);
+    write(sockfd, buff.data, buff.length);
+    printf("\n>>> %s [%zu] ", content_type_str(record7.type), buff.length);
+    printf("\n");
+
+    uint8_t finished_key[32];
+    hkdf_expand_label(
+        (buffer_t){32, client_secret}, 
+        "finished",
+        (buffer_t){0, NULL},
+        (buffer_t){32, finished_key}
+    );
+
+    handshake_message_t finished_msg = {0};
+    finished_msg.msg_type = FINISHED;
+    hmac_sha256_sign(hello_hash, 32, finished_key, 32, finished_msg.finished.verify_data);
+
+
+    dyn_buf_t finished_msg_buf = dyn_buf_create(32);
+    handshake_message_write(&finished_msg_buf, &finished_msg);
+    dyn_buf_write(&finished_msg_buf, &(uint8_t){CONTENT_TYPE_HANDSHAKE}, 1);
+    
+    tls_plaintext_t record8 = {0};
+    record8.type = CONTENT_TYPE_APPLICATION_DATA;
+    record8.legacy_record_version = TLS_12;
+    record8.length = finished_msg_buf.length + 16;
+    record8.fragment = finished_msg_buf.data;
+    dyn_buf_t header = dyn_buf_create(512);
+    tls_plaintext_write_header(&header, &record8);
+    chacha20_poly1305(
+        (buffer_t) {5, header.data},
+        client_handshake_key,
+        client_handshake_iv + 4,
+        client_handshake_iv,
+        (buffer_t) {record8.length - 16, record8.fragment},
+        (buffer_t) {record8.length - 16, record8.fragment},
+        tag
+    );
+
+    dyn_buf_write(&header, record8.fragment, record8.length - 16);
+    dyn_buf_write(&header, tag, 16);
+    write(sockfd, header.data, header.length);
+
+
+    printf("\n>>> %s [%zu] ", content_type_str(record8.type), header.length);
+    printf("\n");
+
     printf("\n-------- APPLICATION KEYS --------\n");
     hkdf_expand_label(
         (buffer_t){32, handshake_secret}, 
@@ -551,54 +606,34 @@ void func(int sockfd) {
     printf("\n");
     printf("\n--------------------------------\n");
 
-    tls_plaintext_t record7;
-    record7.type = CONTENT_TYPE_CHANGE_CIPHER_CPEC;
-    record7.legacy_record_version = TLS_12;
-    record7.length = 1;
-    record7.fragment = &(uint8_t){1};
 
-    buff = dyn_buf_create(6);
-    tls_plaintext_write(&buff, &record7);
-    write(sockfd, buff.data, buff.length);
-    printf("\n>>> %s [%zu] ", content_type_str(record7.type), buff.length);
-    printf("\n");
+    dyn_buf_t msg_buf = dyn_buf_create(32);
+    dyn_buf_write(&msg_buf, "hello", strlen("hello") + 1);
+    dyn_buf_write(&msg_buf, &(uint8_t){CONTENT_TYPE_APPLICATION_DATA}, 1);
 
-    uint8_t finished_key[32];
-    hkdf_expand_label(
-        (buffer_t){32, client_secret}, 
-        "finished",
-        (buffer_t){0, NULL},
-        (buffer_t){12, finished_key}
-    );
-
-    hmac_sha256_sign(zero, 32, zero, 32, early_secret);
-
-    uint8_t seven[7] = {7, 7, 7, 7, 7, 7, 7};
-    tls_plaintext_t record8 = {0};
-    record8.type = CONTENT_TYPE_APPLICATION_DATA;
-    record8.legacy_record_version = TLS_12;
-    record8.length = 7 + 16;
-    record8.fragment = seven;
-    dyn_buf_t header = dyn_buf_create(512);
-    tls_plaintext_write_header(&header, &record8);
+    tls_plaintext_t record9 = {0};
+    record9.type = CONTENT_TYPE_APPLICATION_DATA;
+    record9.legacy_record_version = TLS_12;
+    record9.length = msg_buf.length + 16;
+    record9.fragment = msg_buf.data;
+    header = dyn_buf_create(512);
+    tls_plaintext_write_header(&header, &record9);
     chacha20_poly1305(
         (buffer_t) {5, header.data},
         client_handshake_key,
         client_handshake_iv + 4,
         client_handshake_iv,
-        (buffer_t) {record8.length - 16, record8.fragment},
-        (buffer_t) {record8.length - 16, record8.fragment},
+        (buffer_t) {record9.length - 16, record9.fragment},
+        (buffer_t) {record9.length - 16, record9.fragment},
         tag
     );
 
-    dyn_buf_write(&header, record8.fragment, record8.length - 16);
+    dyn_buf_write(&header, record9.fragment, record9.length - 16);
     dyn_buf_write(&header, tag, 16);
     write(sockfd, header.data, header.length);
 
-
-    printf("\n>>> %s [%zu] ", content_type_str(record8.type), header.length);
+    printf("\n>>> %s [%zu] ", content_type_str(record9.type), header.length);
     printf("\n");
-
 }
 
 int main() {

@@ -179,8 +179,9 @@ int64_t handshake_message_parse(buffer_t buffer, handshake_message_t *msg) {
 
 void handshake_message_write(dyn_buf_t *buf, handshake_message_t *msg) {
     dyn_buf_write(buf, &msg->msg_type, 1);
-    uint8_t *length_be = buf->data + buf->length;
-    dyn_buf_write(buf, length_be, 3);
+    size_t length_be_index = buf->length;
+    uint64_t zero = 0;
+    dyn_buf_write(buf, &zero, 3);
     size_t message_start = buf->length;
     switch (msg->msg_type) {
         case CLIENT_HELLO:
@@ -197,6 +198,7 @@ void handshake_message_write(dyn_buf_t *buf, handshake_message_t *msg) {
     }
     size_t message_end = buf->length;
     uint32_t length = message_end - message_start;
+    uint8_t *length_be = buf->data + length_be_index;
     length_be[2] = (uint8_t) length;
     length >>= 8;
     length_be[1] = (uint8_t) length;
