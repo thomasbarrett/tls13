@@ -29,8 +29,8 @@ clean:
 $(MODULES_OBJ): build-deps
 
 obj/%.o: src/%.c
-	@mkdir -p $(dir $@)
-	@$(CC) -c $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
+	mkdir -p $(dir $@)
+	$(CC) -c $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
 
 bin/tests/%: tests/%.c $(OBJ_FILES) $(MODULES_OBJ)
 	@mkdir -p $(dir $@)
@@ -41,8 +41,8 @@ bin/server: main/server.c $(OBJ_FILES) $(MODULES_OBJ)
 	@$(CC) $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
 
 bin/client: main/client.c $(OBJ_FILES) $(MODULES_OBJ)
-	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(MODULES_INCLUDE) $^ -o $@
 
 .PHONY: test
 test: $(TEST_FILES)

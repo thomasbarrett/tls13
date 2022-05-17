@@ -2,6 +2,7 @@
 #include <hmac.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #define min(a, b) (a < b ? a: b)
 
@@ -43,6 +44,6 @@ void hkdf_expand_label(buffer_t prk, const char *label, buffer_t ctx, buffer_t o
     *iter = ctx.length;
     iter += 1;
     memcpy(iter, ctx.data, ctx.length);
-    
-    hkdf_expand(prk, (buffer_t){label_len, label}, output);
+
+    hkdf_expand(prk, (buffer_t){info_len, info}, output);
 }

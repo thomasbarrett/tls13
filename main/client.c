@@ -230,7 +230,8 @@ void func(int sockfd) {
 
    printf("\n-------- HANDSHAKE KEYS --------\n");
     uint8_t early_secret[32];
-    hmac_sha256_sign(NULL, 0, NULL, 0, early_secret);
+    uint8_t zero[32] = {0};
+    hmac_sha256_sign(zero, 32, zero, 32, early_secret);
     printf("early_secret: ");
     for (size_t i = 0; i < 32; i++) {
         printf("%02x", early_secret[i]);
@@ -271,7 +272,7 @@ void func(int sockfd) {
     printf("\n");
 
     uint8_t handshake_secret[32];
-    hmac_sha256_sign(derived_secret, 32, shared_secret_bytes, 32, handshake_secret);
+    hmac_sha256_sign(shared_secret_bytes, 32, derived_secret, 32, handshake_secret);
     printf("handshake_secret: ");
     for (size_t i = 0; i < 32; i++) {
         printf("%02x", handshake_secret[i]);
@@ -377,39 +378,77 @@ void func(int sockfd) {
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record3 = {0};
     n_read = tls_plaintext_parse(buffer, &record3);
-    printf("<<< %-20s [%03zu bytes] \n", content_type_str(record3.type), n_read);
 
-    uint8_t *plaintext = malloc(record3.length);
     uint8_t tag[16];
     chacha20_poly1305(
-        (buffer_t){0, NULL},
+        (buffer_t) {5, buffer.data},
         server_handshake_key,
+        server_handshake_iv + 4,
         server_handshake_iv,
-        server_handshake_key + 8,
         (buffer_t) {record3.length - 16, record3.fragment},
-        (buffer_t) {record3.length - 16, plaintext},
+        (buffer_t) {record3.length - 16, record3.fragment},
         tag
     );
-    free(plaintext);
+    record3.type = record3.fragment[record3.length - 16 - 1];
+    record3.length -= 17; // 16 byte aead tag + 1 byte type
+    printf("<<< %-20s [%03zu bytes] \n", content_type_str(record3.type), n_read);
 
-    /*
+    
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record4 = {0};
     n_read = tls_plaintext_parse(buffer, &record4);
+    int64_t nonce = *(int64_t*)(server_handshake_iv + 4) ^ htonll(1);
+    chacha20_poly1305(
+        (buffer_t) {5, buffer.data},
+        server_handshake_key,
+        &nonce,
+        server_handshake_iv,
+        (buffer_t) {record4.length - 16, record4.fragment},
+        (buffer_t) {record4.length - 16, record4.fragment},
+        tag
+    );
+    record4.type = record4.fragment[record4.length - 16 - 1];
+    record4.length -= 17; // 16 byte aead tag + 1 byte type
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record4.type), n_read);
 
+    
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record5 = {0};
     n_read = tls_plaintext_parse(buffer, &record5);
+    nonce = *(int64_t*)(server_handshake_iv + 4) ^ htonll(2);
+    chacha20_poly1305(
+        (buffer_t) {5, buffer.data},
+        server_handshake_key,
+        &nonce,
+        server_handshake_iv,
+        (buffer_t) {record5.length - 16, record5.fragment},
+        (buffer_t) {record5.length - 16, record5.fragment},
+        tag
+    );
+    record5.type = record5.fragment[record5.length - 16 - 1];
+    record5.length -= 17; // 16 byte aead tag + 1 byte type
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record5.type), n_read);
 
+    
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record6 = {0};
     n_read = tls_plaintext_parse(buffer, &record6);
+    nonce = *(int64_t*)(server_handshake_iv + 4) ^ htonll(3);
+    chacha20_poly1305(
+        (buffer_t) {5, buffer.data},
+        server_handshake_key,
+        &nonce,
+        server_handshake_iv,
+        (buffer_t) {record6.length - 16, record6.fragment},
+        (buffer_t) {record6.length - 16, record6.fragment},
+        tag
+    );
+    record6.type = record6.fragment[record6.length - 16 - 1];
+    record6.length -= 17; // 16 byte aead tag + 1 byte type
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record6.type), n_read);
 
     buffer = buffer_slice(buffer, n_read);
-    assert(buffer.length == 0);*/
+    assert(buffer.length == 0);
 }
 
 int main() {

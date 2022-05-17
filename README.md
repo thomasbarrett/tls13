@@ -105,8 +105,8 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [x] SHA256 Hash function.
 - [x] SHA256-HMAC MAC. 
 - [x] SHA256 HKDF (Hashed Key Derivation Function)
-- [ ] Handshake Keys Calculation
-- [ ] R/W TLSCiphertext records
+- [x] Handshake Keys Calculation
+- [x] R/W TLSCiphertext records
 - [ ] R/W Certificate records
 - [ ] R/W CertificateVerify records
 - [ ] R/W Finished records
