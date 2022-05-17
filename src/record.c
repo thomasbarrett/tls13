@@ -125,12 +125,16 @@ int64_t tls_plaintext_parse(buffer_t buffer, tls_plaintext_t *res) {
     return 5 + res->length;
 }
 
-void tls_plaintext_write(dyn_buf_t *buf, tls_plaintext_t *msg) {
+void tls_plaintext_write_header(dyn_buf_t *buf, tls_plaintext_t *msg) {
     dyn_buf_write(buf, &msg->type, 1);
     uint16_t legacy_record_version = htons(msg->legacy_record_version);
     dyn_buf_write(buf, &legacy_record_version, sizeof(uint16_t));
     uint16_t length = htons(msg->length);
     dyn_buf_write(buf, &length, sizeof(uint16_t));
+}
+
+void tls_plaintext_write(dyn_buf_t *buf, tls_plaintext_t *msg) {
+    tls_plaintext_write_header(buf, msg);
     dyn_buf_write(buf, msg->fragment, msg->length);
 }
 
@@ -184,6 +188,9 @@ void handshake_message_write(dyn_buf_t *buf, handshake_message_t *msg) {
             break;
         case SERVER_HELLO:
             server_hello_write(buf, &msg->server_hello);
+            break;
+        case FINISHED:
+            finished_write(buf, &msg->finished);
             break;
         default:
             assert(0 && "unsupported");
@@ -688,6 +695,10 @@ void client_hello_write(dyn_buf_t *buf, client_hello_t *client_hello) {
     size_t extensions_end = buf->length;
     *extensions_len = htons(extensions_end - extensions_start);
 
+}
+
+void finished_write(dyn_buf_t *buf, finished_t *finished) {
+    dyn_buf_write(buf, finished->verify_data, 32);
 }
 
 void server_hello_write(dyn_buf_t *buf, server_hello_t *server_hello) {

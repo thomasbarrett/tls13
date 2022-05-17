@@ -226,11 +226,16 @@ typedef struct {
 } server_hello_t;
 
 typedef struct {
+    uint8_t verify_data[32];
+} finished_t;
+
+typedef struct {
     handshake_type_t msg_type;
     uint32_t length; 
     union {
         client_hello_t client_hello;
         server_hello_t server_hello;
+        finished_t finished;
     };
 } handshake_message_t;
 
@@ -397,5 +402,8 @@ int64_t server_hello_parse(buffer_t buffer, server_hello_t *res);
 void client_hello_write(dyn_buf_t *buf, client_hello_t *client_hello);
 
 void server_hello_write(dyn_buf_t *buf, server_hello_t *server_hello);
+
+void tls_plaintext_write_header(dyn_buf_t *buf, tls_plaintext_t *msg);
+void finished_write(dyn_buf_t *buf, finished_t *finished);
 
 #endif /* TLS13_RECORD */
