@@ -110,7 +110,7 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [ ] R/W Certificate records
 - [ ] R/W CertificateVerify records
 - [ ] R/W Finished records
-- [ ] Application Keys Calculation
+- [x] Application Keys Calculation
 - [ ] Hello World HTTPS server.
 
 # Optional Correctness Extensions

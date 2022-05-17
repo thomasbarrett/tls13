@@ -372,8 +372,9 @@ void func(int sockfd) {
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record2 = {0};
     n_read = tls_plaintext_parse(buffer, &record2);
+    // CHANGE_CIPHER_CPEC message IS NOT included in the hash. 
+    //dyn_buf_write(&hello, record2.fragment, record2.length);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record2.type), n_read);
-
 
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record3 = {0};
@@ -392,6 +393,7 @@ void func(int sockfd) {
     record3.type = record3.fragment[record3.length - 16 - 1];
     record3.length -= 17; // 16 byte aead tag + 1 byte type
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record3.type), n_read);
+    dyn_buf_write(&hello, record3.fragment, record3.length);
 
     
     buffer = buffer_slice(buffer, n_read);
@@ -410,6 +412,7 @@ void func(int sockfd) {
     record4.type = record4.fragment[record4.length - 16 - 1];
     record4.length -= 17; // 16 byte aead tag + 1 byte type
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record4.type), n_read);
+    dyn_buf_write(&hello, record4.fragment, record4.length);
 
     
     buffer = buffer_slice(buffer, n_read);
@@ -428,6 +431,7 @@ void func(int sockfd) {
     record5.type = record5.fragment[record5.length - 16 - 1];
     record5.length -= 17; // 16 byte aead tag + 1 byte type
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record5.type), n_read);
+    dyn_buf_write(&hello, record5.fragment, record5.length);
 
     
     buffer = buffer_slice(buffer, n_read);
@@ -446,9 +450,107 @@ void func(int sockfd) {
     record6.type = record6.fragment[record6.length - 16 - 1];
     record6.length -= 17; // 16 byte aead tag + 1 byte type
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record6.type), n_read);
+        dyn_buf_write(&hello, record6.fragment, record6.length);
+    sha256(hello.data, hello.length, hello_hash);
 
     buffer = buffer_slice(buffer, n_read);
     assert(buffer.length == 0);
+
+    printf("\n-------- APPLICATION KEYS --------\n");
+    hkdf_expand_label(
+        (buffer_t){32, handshake_secret}, 
+        "derived",
+        (buffer_t){32, empty_hash},
+        (buffer_t){32, derived_secret}
+    );
+    printf("derived_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", derived_secret[i]);
+    }
+    printf("\n");
+
+    uint8_t master_secret[32];
+    hmac_sha256_sign(zero, 32, derived_secret, 32, master_secret);
+    printf("master_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", master_secret[i]);
+    }
+    printf("\n");
+
+    hkdf_expand_label(
+        (buffer_t){32, master_secret}, 
+        "c ap traffic",
+        (buffer_t){32, hello_hash},
+        (buffer_t){32, client_secret}
+    );
+    printf("client_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", client_secret[i]);
+    }
+    printf("\n");
+
+    hkdf_expand_label(
+        (buffer_t){32, master_secret}, 
+        "s ap traffic",
+        (buffer_t){32, hello_hash},
+        (buffer_t){32, server_secret}
+    );
+    printf("server_secret: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", server_secret[i]);
+    }
+    printf("\n");
+
+    hkdf_expand_label(
+        (buffer_t){32, client_secret}, 
+        "key",
+        (buffer_t){0, NULL},
+        (buffer_t){32, client_handshake_key}
+    );
+    printf("client_handshake_key: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", client_handshake_key[i]);
+    }
+    printf("\n");
+
+    hkdf_expand_label(
+        (buffer_t){32, server_secret}, 
+        "key",
+        (buffer_t){0, NULL},
+        (buffer_t){32, server_handshake_key}
+    );
+    printf("server_handshake_key: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", server_handshake_key[i]);
+    }
+    printf("\n");
+
+
+    hkdf_expand_label(
+        (buffer_t){32, client_secret}, 
+        "iv",
+        (buffer_t){0, NULL},
+        (buffer_t){12, client_handshake_iv}
+    );
+    printf("client_handshake_iv: ");
+    for (size_t i = 0; i < 12; i++) {
+        printf("%02x", client_handshake_iv[i]);
+    }
+    printf("\n");
+
+    hkdf_expand_label(
+        (buffer_t){32, server_secret}, 
+        "iv",
+        (buffer_t){0, NULL},
+        (buffer_t){12, server_handshake_iv}
+    );
+    printf("server_handshake_iv: ");
+    for (size_t i = 0; i < 12; i++) {
+        printf("%02x", server_handshake_iv[i]);
+    }
+    printf("\n");
+    printf("\n--------------------------------\n");
+
 }
 
 int main() {
