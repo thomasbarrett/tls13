@@ -278,13 +278,13 @@ void func(int sockfd) {
 
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record5 = {0};
-    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record4);
+    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record5);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record5.type), n_read);
     dyn_buf_write(&hello, record5.fragment, record5.length);
     
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record6 = {0};
-    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record4);
+    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record6);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record6.type), n_read);
     dyn_buf_write(&hello, record6.fragment, record6.length);
     sha256(hello.data, hello.length, hello_hash);
