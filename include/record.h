@@ -2,6 +2,7 @@
 #define TLS13_RECORD_H
 
 #include <buffer.h>
+#include <key_schedule.h>
 
 typedef enum {
     CONTENT_TYPE_INVALID = 0,
@@ -405,5 +406,7 @@ void server_hello_write(dyn_buf_t *buf, server_hello_t *server_hello);
 
 void tls_plaintext_write_header(dyn_buf_t *buf, tls_plaintext_t *msg);
 void finished_write(dyn_buf_t *buf, finished_t *finished);
+
+int64_t tls_ciphertext_parse(buffer_t buffer, traffic_key_t *keys, tls_plaintext_t *res);
 
 #endif /* TLS13_RECORD */

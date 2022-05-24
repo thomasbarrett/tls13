@@ -15,6 +15,9 @@
 #include <x25519.h>
 #include <hkdf.h>
 #include <chacha20_poly1305.h>
+#include <key_schedule.h>
+
+handshake_keys_t handshake_keys;
 
 void generate_random(buffer_t buf) {
     FILE *rnd = fopen("/dev/urandom", "r");
@@ -229,23 +232,7 @@ void func(int sockfd) {
     }
 
    printf("\n-------- HANDSHAKE KEYS --------\n");
-    uint8_t early_secret[32];
-    uint8_t zero[32] = {0};
-    hmac_sha256_sign(zero, 32, zero, 32, early_secret);
-    printf("early_secret: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", early_secret[i]);
-    }
-    printf("\n");
-    uint8_t empty_hash[32];
-    sha256(NULL, 0, empty_hash);
-    printf("empty_hash: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", empty_hash[i]);
-    }
-    printf("\n");
-
-    
+  
     // Compute shared_secret
 
     uint_t shared_secret[16] = {0};
@@ -258,204 +245,52 @@ void func(int sockfd) {
     }
     printf("\n");
 
-    uint8_t derived_secret[32] = {0};
-    hkdf_expand_label(
-        (buffer_t){32, early_secret}, 
-        "derived",
-        (buffer_t){32, empty_hash},
-        (buffer_t){32, derived_secret}
-    );
-    printf("derived_secret: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", derived_secret[i]);
-    }
-    printf("\n");
-
-    uint8_t handshake_secret[32];
-    hmac_sha256_sign(shared_secret_bytes, 32, derived_secret, 32, handshake_secret);
-    printf("handshake_secret: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", handshake_secret[i]);
-    }
-    printf("\n");
-
     uint8_t hello_hash[32];
     dyn_buf_t hello = dyn_buf_create(buf.length + record1.length);
     dyn_buf_write(&hello, buf.data, buf.length);
     dyn_buf_write(&hello, record1.fragment, record1.length);
     sha256(hello.data, hello.length, hello_hash);
 
-    uint8_t client_secret[32] = {0};
-    hkdf_expand_label(
-        (buffer_t){32, handshake_secret}, 
-        "c hs traffic",
-        (buffer_t){32, hello_hash},
-        (buffer_t){32, client_secret}
-    );
-    printf("client_secret: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", client_secret[i]);
-    }
-    printf("\n");
-
-
-    uint8_t server_secret[32] = {0};
-    hkdf_expand_label(
-        (buffer_t){32, handshake_secret}, 
-        "s hs traffic",
-        (buffer_t){32, hello_hash},
-        (buffer_t){32, server_secret}
-    );
-    printf("server_secret: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", server_secret[i]);
-    }
-    printf("\n");
-
-
-    uint8_t client_handshake_key[32] = {0};
-    hkdf_expand_label(
-        (buffer_t){32, client_secret}, 
-        "key",
-        (buffer_t){0, NULL},
-        (buffer_t){32, client_handshake_key}
-    );
-    printf("client_handshake_key: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", client_handshake_key[i]);
-    }
-    printf("\n");
-
-
-    uint8_t server_handshake_key[32] = {0};
-    hkdf_expand_label(
-        (buffer_t){32, server_secret}, 
-        "key",
-        (buffer_t){0, NULL},
-        (buffer_t){32, server_handshake_key}
-    );
-    printf("server_handshake_key: ");
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", server_handshake_key[i]);
-    }
-    printf("\n");
-
-
-    uint8_t client_handshake_iv[12] = {0};
-    hkdf_expand_label(
-        (buffer_t){32, client_secret}, 
-        "iv",
-        (buffer_t){0, NULL},
-        (buffer_t){12, client_handshake_iv}
-    );
-    printf("client_handshake_iv: ");
-    for (size_t i = 0; i < 12; i++) {
-        printf("%02x", client_handshake_iv[i]);
-    }
-    printf("\n");
-
-    uint8_t server_handshake_iv[12] = {0};
-    hkdf_expand_label(
-        (buffer_t){32, server_secret}, 
-        "iv",
-        (buffer_t){0, NULL},
-        (buffer_t){12, server_handshake_iv}
-    );
-    printf("server_handshake_iv: ");
-    for (size_t i = 0; i < 12; i++) {
-        printf("%02x", server_handshake_iv[i]);
-    }
-    printf("\n");
+    /*
+     * 
+     *
+     */
+    compute_handshake_keys(hello_hash, shared_secret_bytes, &handshake_keys);
 
     printf("\n--------------------------------\n");
     
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record2 = {0};
     n_read = tls_plaintext_parse(buffer, &record2);
-    // CHANGE_CIPHER_CPEC message IS NOT included in the hash. 
-    //dyn_buf_write(&hello, record2.fragment, record2.length);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record2.type), n_read);
 
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record3 = {0};
-    n_read = tls_plaintext_parse(buffer, &record3);
-
-    uint8_t tag[16];
-    chacha20_poly1305(
-        (buffer_t) {5, buffer.data},
-        server_handshake_key,
-        server_handshake_iv + 4,
-        server_handshake_iv,
-        (buffer_t) {record3.length - 16, record3.fragment},
-        (buffer_t) {record3.length - 16, record3.fragment},
-        tag
-    );
-    record3.type = record3.fragment[record3.length - 16 - 1];
-    record3.length -= 17; // 16 byte aead tag + 1 byte type
+    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record3);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record3.type), n_read);
     dyn_buf_write(&hello, record3.fragment, record3.length);
 
-    
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record4 = {0};
-    n_read = tls_plaintext_parse(buffer, &record4);
-    int64_t nonce = *(int64_t*)(server_handshake_iv + 4) ^ htonll(1);
-    chacha20_poly1305(
-        (buffer_t) {5, buffer.data},
-        server_handshake_key,
-        &nonce,
-        server_handshake_iv,
-        (buffer_t) {record4.length - 16, record4.fragment},
-        (buffer_t) {record4.length - 16, record4.fragment},
-        tag
-    );
-    record4.type = record4.fragment[record4.length - 16 - 1];
-    record4.length -= 17; // 16 byte aead tag + 1 byte type
+    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record4);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record4.type), n_read);
     dyn_buf_write(&hello, record4.fragment, record4.length);
 
-    
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record5 = {0};
-    n_read = tls_plaintext_parse(buffer, &record5);
-    nonce = *(int64_t*)(server_handshake_iv + 4) ^ htonll(2);
-    chacha20_poly1305(
-        (buffer_t) {5, buffer.data},
-        server_handshake_key,
-        &nonce,
-        server_handshake_iv,
-        (buffer_t) {record5.length - 16, record5.fragment},
-        (buffer_t) {record5.length - 16, record5.fragment},
-        tag
-    );
-    record5.type = record5.fragment[record5.length - 16 - 1];
-    record5.length -= 17; // 16 byte aead tag + 1 byte type
+    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record4);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record5.type), n_read);
     dyn_buf_write(&hello, record5.fragment, record5.length);
-
     
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record6 = {0};
-    n_read = tls_plaintext_parse(buffer, &record6);
-    nonce = *(int64_t*)(server_handshake_iv + 4) ^ htonll(3);
-    chacha20_poly1305(
-        (buffer_t) {5, buffer.data},
-        server_handshake_key,
-        &nonce,
-        server_handshake_iv,
-        (buffer_t) {record6.length - 16, record6.fragment},
-        (buffer_t) {record6.length - 16, record6.fragment},
-        tag
-    );
-    record6.type = record6.fragment[record6.length - 16 - 1];
-    record6.length -= 17; // 16 byte aead tag + 1 byte type
+    n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record4);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record6.type), n_read);
-        dyn_buf_write(&hello, record6.fragment, record6.length);
+    dyn_buf_write(&hello, record6.fragment, record6.length);
     sha256(hello.data, hello.length, hello_hash);
 
     buffer = buffer_slice(buffer, n_read);
     assert(buffer.length == 0);
-
 
     tls_plaintext_t record7;
     record7.type = CONTENT_TYPE_CHANGE_CIPHER_CPEC;
@@ -466,12 +301,11 @@ void func(int sockfd) {
     buff = dyn_buf_create(6);
     tls_plaintext_write(&buff, &record7);
     write(sockfd, buff.data, buff.length);
-    printf("\n>>> %s [%zu] ", content_type_str(record7.type), buff.length);
-    printf("\n");
+    printf("\n>>> %s [%zu] \n", content_type_str(record7.type), buff.length);
 
     uint8_t finished_key[32];
     hkdf_expand_label(
-        (buffer_t){32, client_secret}, 
+        (buffer_t){32, handshake_keys.client_traffic.secret}, 
         "finished",
         (buffer_t){0, NULL},
         (buffer_t){32, finished_key}
@@ -481,11 +315,11 @@ void func(int sockfd) {
     finished_msg.msg_type = FINISHED;
     hmac_sha256_sign(hello_hash, 32, finished_key, 32, finished_msg.finished.verify_data);
 
-
     dyn_buf_t finished_msg_buf = dyn_buf_create(32);
     handshake_message_write(&finished_msg_buf, &finished_msg);
     dyn_buf_write(&finished_msg_buf, &(uint8_t){CONTENT_TYPE_HANDSHAKE}, 1);
     
+    uint8_t tag[16];
     tls_plaintext_t record8 = {0};
     record8.type = CONTENT_TYPE_APPLICATION_DATA;
     record8.legacy_record_version = TLS_12;
@@ -495,9 +329,9 @@ void func(int sockfd) {
     tls_plaintext_write_header(&header, &record8);
     chacha20_poly1305(
         (buffer_t) {5, header.data},
-        client_handshake_key,
-        client_handshake_iv + 4,
-        client_handshake_iv,
+        handshake_keys.client_traffic.key,
+        handshake_keys.client_traffic.iv + 4,
+        handshake_keys.client_traffic.iv,
         (buffer_t) {record8.length - 16, record8.fragment},
         (buffer_t) {record8.length - 16, record8.fragment},
         tag
@@ -512,8 +346,20 @@ void func(int sockfd) {
     printf("\n");
 
     printf("\n-------- APPLICATION KEYS --------\n");
+        uint8_t zero[32] = {0};
+   
+    printf("\n");
+    uint8_t empty_hash[32];
+    sha256(NULL, 0, empty_hash);
+    printf("empty_hash: ");
+    for (size_t i = 0; i < 32; i++) {
+        printf("%02x", empty_hash[i]);
+    }
+    printf("\n");
+
+    uint8_t derived_secret[32];
     hkdf_expand_label(
-        (buffer_t){32, handshake_secret}, 
+        (buffer_t){32, handshake_keys.handshake_secret}, 
         "derived",
         (buffer_t){32, empty_hash},
         (buffer_t){32, derived_secret}
@@ -532,6 +378,7 @@ void func(int sockfd) {
     }
     printf("\n");
 
+    uint8_t client_secret[32];
     hkdf_expand_label(
         (buffer_t){32, master_secret}, 
         "c ap traffic",
@@ -544,6 +391,7 @@ void func(int sockfd) {
     }
     printf("\n");
 
+    uint8_t server_secret[32];
     hkdf_expand_label(
         (buffer_t){32, master_secret}, 
         "s ap traffic",
@@ -556,6 +404,7 @@ void func(int sockfd) {
     }
     printf("\n");
 
+    uint8_t client_handshake_key[32];
     hkdf_expand_label(
         (buffer_t){32, client_secret}, 
         "key",
@@ -568,6 +417,7 @@ void func(int sockfd) {
     }
     printf("\n");
 
+    uint8_t server_handshake_key[32];
     hkdf_expand_label(
         (buffer_t){32, server_secret}, 
         "key",
@@ -581,6 +431,7 @@ void func(int sockfd) {
     printf("\n");
 
 
+    uint8_t client_handshake_iv[12];
     hkdf_expand_label(
         (buffer_t){32, client_secret}, 
         "iv",
@@ -593,6 +444,7 @@ void func(int sockfd) {
     }
     printf("\n");
 
+    uint8_t server_handshake_iv[12];
     hkdf_expand_label(
         (buffer_t){32, server_secret}, 
         "iv",
@@ -606,9 +458,8 @@ void func(int sockfd) {
     printf("\n");
     printf("\n--------------------------------\n");
 
-
     dyn_buf_t msg_buf = dyn_buf_create(32);
-    dyn_buf_write(&msg_buf, "hello", strlen("hello") + 1);
+    dyn_buf_write(&msg_buf, "hello world!", strlen("hello world!") + 1);
     dyn_buf_write(&msg_buf, &(uint8_t){CONTENT_TYPE_APPLICATION_DATA}, 1);
 
     tls_plaintext_t record9 = {0};

@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+#include <key_schedule.h>
+#include <chacha20_poly1305.h>
 
 const char* content_type_str(content_type_t t) {
     switch (t) {
@@ -123,6 +125,26 @@ int64_t tls_plaintext_parse(buffer_t buffer, tls_plaintext_t *res) {
     assert(res->fragment != NULL && "out of memory");
     memcpy(res->fragment, iter.data, res->length);
     return 5 + res->length;
+}
+
+int64_t tls_ciphertext_parse(buffer_t buffer, traffic_key_t *keys, tls_plaintext_t *res) {
+    int64_t n_read = tls_plaintext_parse(buffer, res);
+    assert(n_read > 0);
+    int64_t nonce = *(int64_t*)(keys->iv + 4) ^ htonll(keys->nonce);
+    uint8_t tag[16];
+    chacha20_poly1305(
+        (buffer_t) {5, buffer.data},
+        keys->key,
+        &nonce,
+        keys->iv,
+        (buffer_t) {res->length - 16, res->fragment},
+        (buffer_t) {res->length - 16, res->fragment},
+        tag
+    );
+    res->type = res->fragment[res->length - 16 - 1];
+    res->length -= 17; // 16 byte aead tag + 1 byte type
+    keys->nonce += 1;
+    return n_read;
 }
 
 void tls_plaintext_write_header(dyn_buf_t *buf, tls_plaintext_t *msg) {

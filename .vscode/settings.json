@@ -18,6 +18,8 @@
         "sha256.h": "c",
         "hmac.h": "c",
         "stdint.h": "c",
-        "hkdf.h": "c"
+        "hkdf.h": "c",
+        "__node_handle": "c",
+        "key_schedule.h": "c"
     }
 }
