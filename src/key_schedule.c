@@ -127,7 +127,7 @@ void compute_handshake_keys(
 void compute_application_keys(
     const uint8_t *msg_hash,
     const handshake_keys_t *handshake_keys,
-    traffic_key_t *application_keys
+    application_keys_t *application_keys
 ) {
     
 }

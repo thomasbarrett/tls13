@@ -46,6 +46,14 @@ void uint_to_bytes(uint_t *n, uint8_t *bytes) {
 
 void func(int sockfd) {
 
+    /*
+     * Handshake record accumulator buffer. The unencrypted payload of every
+     * handshake record sent or recieved is appended to the msg_acc buffer. 
+     * This is used in the TLS 1.3 key schedule computations.
+     */
+    uint8_t msg_hash[32];
+    dyn_buf_t msg_acc = dyn_buf_create(0);
+   
     handshake_message_t handshake_message;
     handshake_message.msg_type = CLIENT_HELLO;
     client_hello_t *client_hello = &handshake_message.client_hello;
@@ -122,7 +130,8 @@ void func(int sockfd) {
 
     dyn_buf_t buf = dyn_buf_create(1024);
     handshake_message_write(&buf, &handshake_message);
-    
+    dyn_buf_write(&msg_acc, buf.data, buf.length);
+
     tls_plaintext_t record;
     record.type = CONTENT_TYPE_HANDSHAKE;
     record.legacy_record_version = TLS_10;
@@ -133,15 +142,8 @@ void func(int sockfd) {
     tls_plaintext_write(&buff, &record);
     write(sockfd, buff.data, buff.length);
     printf("message of length %zu sent\n", buff.length);
-    
-    printf("\n>>> %s [%zu] ", content_type_str(record.type), buff.length);
-    uint8_t hash0[32];
-    sha256(buf.data, buf.length, hash0);
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", hash0[i]);
-    }
-    printf("\n");
-
+    printf("\n>>> %s [%zu] \n", content_type_str(record.type), buff.length);
+   
     uint8_t read_buff[1024] = {0};
     size_t n_read = read(sockfd, read_buff, sizeof(read_buff));
     buffer_t buffer = {n_read, read_buff};
@@ -149,13 +151,8 @@ void func(int sockfd) {
     tls_plaintext_t record1 = {0};
     n_read = tls_plaintext_parse(buffer, &record1);
     assert(n_read > 0);
-    printf("<<< %s [%zu] ", content_type_str(record1.type), n_read);
-    uint8_t hash[32];
-    sha256(record1.fragment, record1.length, hash);
-    for (size_t i = 0; i < 32; i++) {
-        printf("%02x", hash[i]);
-    }
-    printf("\n");
+    printf("<<< %s [%zu] \n", content_type_str(record1.type), n_read);
+    dyn_buf_write(&msg_acc, record1.fragment, record1.length);
     
     handshake_message_t msg = {0};
     size_t n_read2 = handshake_message_parse((buffer_t){record1.length, record1.fragment}, &msg);
@@ -245,17 +242,12 @@ void func(int sockfd) {
     }
     printf("\n");
 
-    uint8_t hello_hash[32];
-    dyn_buf_t hello = dyn_buf_create(buf.length + record1.length);
-    dyn_buf_write(&hello, buf.data, buf.length);
-    dyn_buf_write(&hello, record1.fragment, record1.length);
-    sha256(hello.data, hello.length, hello_hash);
-
     /*
      * 
      *
      */
-    compute_handshake_keys(hello_hash, shared_secret_bytes, &handshake_keys);
+    sha256(msg_acc.data, msg_acc.length, msg_hash);
+    compute_handshake_keys(msg_hash, shared_secret_bytes, &handshake_keys);
 
     printf("\n--------------------------------\n");
     
@@ -268,29 +260,30 @@ void func(int sockfd) {
     tls_plaintext_t record3 = {0};
     n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record3);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record3.type), n_read);
-    dyn_buf_write(&hello, record3.fragment, record3.length);
+    dyn_buf_write(&msg_acc, record3.fragment, record3.length);
 
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record4 = {0};
     n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record4);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record4.type), n_read);
-    dyn_buf_write(&hello, record4.fragment, record4.length);
+    dyn_buf_write(&msg_acc, record4.fragment, record4.length);
 
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record5 = {0};
     n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record5);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record5.type), n_read);
-    dyn_buf_write(&hello, record5.fragment, record5.length);
+    dyn_buf_write(&msg_acc, record5.fragment, record5.length);
     
     buffer = buffer_slice(buffer, n_read);
     tls_plaintext_t record6 = {0};
     n_read = tls_ciphertext_parse(buffer, &handshake_keys.server_traffic, &record6);
     printf("<<< %-20s [%03zu bytes] \n", content_type_str(record6.type), n_read);
-    dyn_buf_write(&hello, record6.fragment, record6.length);
-    sha256(hello.data, hello.length, hello_hash);
+    dyn_buf_write(&msg_acc, record6.fragment, record6.length);
 
     buffer = buffer_slice(buffer, n_read);
     assert(buffer.length == 0);
+
+    /*==------------------------ APPLICATION DATA -------------------------==*/
 
     tls_plaintext_t record7;
     record7.type = CONTENT_TYPE_CHANGE_CIPHER_CPEC;
@@ -313,7 +306,8 @@ void func(int sockfd) {
 
     handshake_message_t finished_msg = {0};
     finished_msg.msg_type = FINISHED;
-    hmac_sha256_sign(hello_hash, 32, finished_key, 32, finished_msg.finished.verify_data);
+    sha256(msg_acc.data, msg_acc.length, msg_hash);
+    hmac_sha256_sign(msg_hash, 32, finished_key, 32, finished_msg.finished.verify_data);
 
     dyn_buf_t finished_msg_buf = dyn_buf_create(32);
     handshake_message_write(&finished_msg_buf, &finished_msg);
@@ -341,13 +335,12 @@ void func(int sockfd) {
     dyn_buf_write(&header, tag, 16);
     write(sockfd, header.data, header.length);
 
-
     printf("\n>>> %s [%zu] ", content_type_str(record8.type), header.length);
     printf("\n");
 
     printf("\n-------- APPLICATION KEYS --------\n");
-        uint8_t zero[32] = {0};
-   
+    uint8_t zero[32] = {0};
+
     printf("\n");
     uint8_t empty_hash[32];
     sha256(NULL, 0, empty_hash);
@@ -382,7 +375,7 @@ void func(int sockfd) {
     hkdf_expand_label(
         (buffer_t){32, master_secret}, 
         "c ap traffic",
-        (buffer_t){32, hello_hash},
+        (buffer_t){32, msg_hash},
         (buffer_t){32, client_secret}
     );
     printf("client_secret: ");
@@ -395,7 +388,7 @@ void func(int sockfd) {
     hkdf_expand_label(
         (buffer_t){32, master_secret}, 
         "s ap traffic",
-        (buffer_t){32, hello_hash},
+        (buffer_t){32, msg_hash},
         (buffer_t){32, server_secret}
     );
     printf("server_secret: ");
