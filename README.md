@@ -1,3 +1,73 @@
+# Introduction
+The TLS 1.3 protocol defines a bi-directional encrypted socket designed to
+be used in conjuction with the TCP protocol. It forms the basis of the HTTPS
+protocol over which private data, credit card numbers, passwords, and all matter
+of information is transmitted when using the internet. This protocol is the most
+recent of a long history of deprecated security protocols (TLS 1.2, TLS 1.0,
+SSL 2.0, and SSL 1.0) that were later found to be insecure.  The TLS 1.3 protocol
+is defined by the IETF in [RFC8446](https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.6).
+
+My primary purpose for implementing the TLS 1.3 protocol was educational: The TLS 1.3
+protocol is a complex protocol which, despite is ubiquirt, very few people know the
+technical details. The secondary purpose was to create a secure implementation utilizing
+my constant time big-integer library. The utilization of constant time cryptography is
+essential for modern cryptographic libraries and protocols: timing side channels have
+been shown to break even the most theoretically secure cryptographic schemes.
+
+# Protocol Overview
+
+## Record Protocol
+The RecordProtocol is the base protocol that all other protocols are built
+upon. It is used to deliminate stream data into discrete messages and label
+which protocol each message belongs to. HANDSHAKE and CHANGE_CIPHER_CPEC message
+types contain plaintext payload. APPLICATION_DATA messages contain ciphertext
+payload. In TLS 1.3 the decrypted payload of APPLICATION_DATA messages contain
+additional HANDSHAKE messages.
+- [x] R TLSPlaintext records (required)
+- [x] W TLSPlaintext records (required)
+- [x] R TLSCiphertext records (required)
+- [x] W TLSCiphertext records (required)
+
+## ChangeCipherSpec Protocol
+The ChangeCipherSpec Protocol is unused in TLS 1.3, but a placehold
+ChangeCipherSpec exchange is still used to ensure compatability with
+TLS 1.2 middlebox compatability.
+- [x] R ChangeCipherSpec messages (required)
+- [x] W ChangeCipherSpec messages (required)
+
+## Handshake Protocol
+The Handshake protocol serves the essential purpose of negotiating an encrpyted
+connection between the client and the server. This involves two main purposes:
+1. Negotiate shared keys.
+After performing a secure key exchange protocol, both parties have a common set
+of shared keys that can be used to encrypt further traffic (via TLS Ciphertext Records).
+This exchange is done in such a way that no middleman has access to the shared key
+and cannot read the traffic.
+
+2. Prove the identity of the server.
+For the sake of time, I chose not to implement Certificate validation. This decreases
+the security gurentees of my implementation, but still allows it to work. With additional
+time, this would be an implmementation priority.
+- [x] R HelloClient messages (required)
+- [x] W HelloClient messages (required)
+- [x] R HelloServer messages (required)
+- [ ] W HelloServer messages (required)
+- [ ] R/W HelloRetryRequest messages (error)
+- [ ] R/W EncryptedExtensions messages (required)
+- [ ] R/W CertificateRequest messages (optional)
+- [ ] R/W Certificate messages (required)
+- [ ] R/W CertificateVerify messages (required)
+- [x] R/W Finished messages (required)
+
+## Alert Protocol
+The Alert protocol is used to communicate errors between the client and server.
+Common errors include version incompatability or invalid messages. For the sake
+of time, I chose not to implement the Alert protocol for the sake of time. Instead,
+my server and client instantly terminates the connection upon recieving an invalid
+message.
+- [ ] R Alert message (error)
+- [ ] W Alert message (error)
+
 # TLS13
 This repository implements a TLS 1.3 server and client as described in
 [RFC8446](https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.6).
@@ -38,41 +108,6 @@ that may be implement in the future.
 
 The TLS 1.3 Protocol is actually composed of 4 different protocols.
 
-## Record Protocol
-The RecordProtocol is the base protocol that all other protocols are built
-upon. It is used to deliminate stream data into discrete messages and label
-which protocol each message belongs to. HANDSHAKE and CHANGE_CIPHER_CPEC message
-types contain plaintext payload. APPLICATION_DATA messages contain ciphertext
-payload. In TLS 1.3 the decrypted payload of APPLICATION_DATA messages contain
-additional HANDSHAKE messages.
-- [x] R TLSPlaintext records (required)
-- [x] W TLSPlaintext records (required)
-- [ ] R TLSCiphertext records (required)
-- [ ] W TLSCiphertext records (required)
-
-## ChangeCipherSpec Protocol
-The ChangeCipherSpec Protocol is unused in TLS 1.3, but a placehold
-ChangeCipherSpec exchange is still used to ensure compatability with
-TLS 1.2 middlebox compatability.
-- [ ] R ChangeCipherSpec messages (required)
-- [ ] W ChangeCipherSpec messages (required)
-
-## Handshake Protocol
-- [x] R HelloClient messages (required)
-- [x] W HelloClient messages (required)
-- [x] R HelloServer messages (required)
-- [ ] W HelloServer messages (required)
-- [ ] R/W HelloRetryRequest messages (error)
-- [ ] R/W EncryptedExtensions messages (required)
-- [ ] R/W CertificateRequest messages (optional)
-- [ ] R/W Certificate messages (required)
-- [ ] R/W CertificateVerify messages (required)
-- [ ] R/W Finished messages (required)
-
-## Alert Protocol
-- [ ] R Alert message (error)
-- [ ] W Alert message (error)
-
 # Implementation Details
 ## ClientHello, ServerHello
 In both ClientHello and SeverHello, we correctly signal our very limited support
@@ -109,7 +144,7 @@ implementation for ECDSA_SECP256R1_SHA256 or TLS_CHACHA20_POLY1305_SHA256 yet).
 - [x] R/W TLSCiphertext records
 - [ ] R/W Certificate records
 - [ ] R/W CertificateVerify records
-- [ ] R/W Finished records
+- [x] R/W Finished records
 - [x] Application Keys Calculation
 - [ ] Hello World HTTPS server.
 
