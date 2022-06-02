@@ -111,6 +111,46 @@ const char *protocol_version_str(protocol_version_t v) {
     }
 }
 
+const char* alert_level_str(alert_level_t t) {
+    switch (t) {
+    case ALERT_LEVEL_WARNING: return "WARNING";
+    case ALERT_LEVEL_FATAL: return "FATAL";
+    default: return NULL;
+    }
+}
+const char* alert_description_str(alert_description_t t) {
+    switch (t) {
+    case CLOSE_NOTIFY: return "CLOSE_NOTIFY";
+    case UNEXPECTED_MESSAGE: return "UNEXPECTED_MESSAGE";
+    case BAD_RECORD_MAC: return "BAD_RECORD_MAC";
+    case RECORD_OVERFLOW: return "RECORD_OVERFLOW";
+    case HANDSHAKE_FAILURE: return "HANDSHAKE_FAILURE";
+    case BAD_CERTIFICATE: return "BAD_CERTIFICATE";
+    case UNSUPPORTED_CERTIFICATE: return "UNSUPPORTED_CERTIFICATE";
+    case CERTIFICATE_REVOKED: return "CERTIFICATE_REVOKED";
+    case CERTIFICATE_EXPIRED: return "CERTIFICATE_EXPIRED";
+    case CERTIFICATE_UNKNOWN: return "CERTIFICATE_UNKNOWN";
+    case ILLEGAL_PARAMETER: return "ILLEGAL_PARAMETER";
+    case UNKNOWN_CA: return "UNKNOWN_CA";
+    case ACCESS_DENIED: return "ACCESS_DENIED";
+    case DECODE_ERROR: return "DECODE_ERROR";
+    case DECRYPT_ERROR: return "DECRYPT_ERROR";
+    case PROTOCOL_VERSION: return "PROTOCOL_VERSION";
+    case INSUFFICIENT_SECURITY: return "INSUFFICIENT_SECURITY";
+    case INTERNAL_ERROR: return "INTERNAL_ERROR";
+    case INAPPROPRIATE_FALLBACK: return "INAPPROPRIATE_FALLBACK";
+    case USER_CANCELED: return "USER_CANCELED";
+    case MISSING_EXTENSION: return "MISSING_EXTENSION";
+    case UNSUPPORTED_EXTENSION: return "UNSUPPORTED_EXTENSION";
+    case UNRECOGNIZED_NAME: return "UNRECOGNIZED_NAME";
+    case BAD_CERTIFICATE_STATUS_RESPONSE: return "BAD_CERTIFICATE_STATUS_RESPONSE";
+    case UNKNOWN_PSK_IDENTITY: return "UNKNOWN_PSK_IDENTITY";
+    case CERTIFICATE_REQUIRED: return "CERTIFICATE_REQUIRED";
+    case NO_APPLICATION_PROTOCOL: return "NO_APPLICATION_PROTOCOL";
+    default: return NULL;
+    }
+}
+
 int64_t tls_plaintext_parse(buffer_t buffer, tls_plaintext_t *res) {
     buffer_t iter = buffer;
     if (buffer.length < 5) return TLS_PARSE_INCOMPLETE;
@@ -158,6 +198,14 @@ void tls_plaintext_write_header(dyn_buf_t *buf, tls_plaintext_t *msg) {
 void tls_plaintext_write(dyn_buf_t *buf, tls_plaintext_t *msg) {
     tls_plaintext_write_header(buf, msg);
     dyn_buf_write(buf, msg->fragment, msg->length);
+}
+
+int64_t tls_alert_parse(buffer_t buffer, alert_t *alert) {
+    buffer_t iter = buffer;
+    if (iter.length < 2) return TLS_PARSE_INCOMPLETE;
+    alert->level = iter.data[0];
+    alert->description = iter.data[1];
+    return 2;
 }
 
 int64_t handshake_message_parse(buffer_t buffer, handshake_message_t *msg) {

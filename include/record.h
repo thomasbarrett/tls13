@@ -240,6 +240,46 @@ typedef struct {
     };
 } handshake_message_t;
 
+typedef enum {
+    ALERT_LEVEL_WARNING = 1,
+    ALERT_LEVEL_FATAL = 2
+} alert_level_t;
+
+typedef enum {
+    CLOSE_NOTIFY = 0,
+    UNEXPECTED_MESSAGE = 10,
+    BAD_RECORD_MAC = 20,
+    RECORD_OVERFLOW = 22,
+    HANDSHAKE_FAILURE = 40,
+    BAD_CERTIFICATE = 42,
+    UNSUPPORTED_CERTIFICATE = 43,
+    CERTIFICATE_REVOKED = 44,
+    CERTIFICATE_EXPIRED = 45,
+    CERTIFICATE_UNKNOWN = 46,
+    ILLEGAL_PARAMETER = 47,
+    UNKNOWN_CA = 48,
+    ACCESS_DENIED = 49,
+    DECODE_ERROR = 50,
+    DECRYPT_ERROR = 51,
+    PROTOCOL_VERSION = 70,
+    INSUFFICIENT_SECURITY = 71,
+    INTERNAL_ERROR = 80,
+    INAPPROPRIATE_FALLBACK = 86,
+    USER_CANCELED = 90,
+    MISSING_EXTENSION = 109,
+    UNSUPPORTED_EXTENSION = 110,
+    UNRECOGNIZED_NAME = 112,
+    BAD_CERTIFICATE_STATUS_RESPONSE = 113,
+    UNKNOWN_PSK_IDENTITY = 115,
+    CERTIFICATE_REQUIRED = 116,
+    NO_APPLICATION_PROTOCOL = 120
+} alert_description_t;
+
+typedef struct alert {
+    alert_level_t level;
+    alert_description_t description;
+} alert_t;
+
 #define TLS_PARSE_INCOMPLETE -1
 #define TLS_PARSE_ERROR -2
 
@@ -269,6 +309,9 @@ const char* cipher_suite_str(cipher_suite_t t);
  * @return a string representation of the extension type. 
  */
 const char* extension_type_str(extension_type_t t);
+
+const char* alert_level_str(alert_level_t t);
+const char* alert_description_str(alert_description_t t);
 
 /**
  * @brief Return a string representation of the EC point format or
@@ -408,5 +451,7 @@ void tls_plaintext_write_header(dyn_buf_t *buf, tls_plaintext_t *msg);
 void finished_write(dyn_buf_t *buf, finished_t *finished);
 
 int64_t tls_ciphertext_parse(buffer_t buffer, traffic_key_t *keys, tls_plaintext_t *res);
+
+int64_t tls_alert_parse(buffer_t buffer, alert_t *alert);
 
 #endif /* TLS13_RECORD */

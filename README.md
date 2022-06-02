@@ -61,12 +61,9 @@ time, this would be an implmementation priority.
 
 ## Alert Protocol
 The Alert protocol is used to communicate errors between the client and server.
-Common errors include version incompatability or invalid messages. For the sake
-of time, I chose not to implement the Alert protocol for the sake of time. Instead,
-my server and client instantly terminates the connection upon recieving an invalid
-message.
-- [ ] R Alert message (error)
-- [ ] W Alert message (error)
+Common errors include version incompatability or invalid messages. 
+- [x] R Alert message (error)
+- [x] W Alert message (error)
 
 # TLS13
 This repository implements a TLS 1.3 server and client as described in

@@ -18,3 +18,4 @@ if __name__ == "__main__":
             if not data:
                 break
             print(f"Received: {data.decode('utf-8')}")
+            connection.write(bytes("pong", "utf-8"))
