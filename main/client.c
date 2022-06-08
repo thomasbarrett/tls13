@@ -143,7 +143,7 @@ void func(int sockfd) {
     tls_plaintext_write(&buff, &record);
     write(sockfd, buff.data, buff.length);
     printf("message of length %zu sent\n", buff.length);
-    printf("\n>>> %s [%zu] \n", content_type_str(record.type), buff.length);
+    printf(">>> %-20s [%03zu bytes] \n", content_type_str(record.type), buff.length);
    
     uint8_t read_buff[8192] = {0};
     size_t n_read = read(sockfd, read_buff, sizeof(read_buff));
@@ -152,7 +152,7 @@ void func(int sockfd) {
     tls_plaintext_t record1 = {0};
     n_read = tls_plaintext_parse(buffer, &record1);
     assert(n_read > 0);
-    printf("<<< %s [%zu] \n", content_type_str(record1.type), n_read);
+    printf("<<< %-20s [%03zu bytes] \n", content_type_str(record1.type), n_read);
     dyn_buf_write(&msg_acc, record1.fragment, record1.length);
     
     handshake_message_t msg = {0};
@@ -285,7 +285,7 @@ void func(int sockfd) {
     buff = dyn_buf_create(6);
     tls_plaintext_write(&buff, &record7);
     write(sockfd, buff.data, buff.length);
-    printf("\n>>> %s [%zu] \n", content_type_str(record7.type), buff.length);
+    printf(">>> %-20s [%03zu bytes] \n", content_type_str(record7.type), buff.length);
 
     uint8_t finished_key[32];
     hkdf_expand_label(
@@ -326,8 +326,7 @@ void func(int sockfd) {
     dyn_buf_write(&header, tag, 16);
     write(sockfd, header.data, header.length);
 
-    printf("\n>>> %s [%zu] ", content_type_str(record8.type), header.length);
-    printf("\n");
+    printf(">>> %-20s [%03zu bytes] \n", content_type_str(record8.type), header.length);
 
     compute_application_keys(msg_hash, &handshake_keys, &application_keys);
 
@@ -357,8 +356,7 @@ void func(int sockfd) {
     dyn_buf_write(&header, tag, 16);
     write(sockfd, header.data, header.length);
 
-    printf("\n>>> %s [%zu] ", content_type_str(record9.type), header.length);
-    printf("\n");
+    printf(">>> %-20s [%03zu bytes] \n", content_type_str(record9.type), header.length);
     
     while (true) {
         uint8_t read_buff[8192] = {0};
@@ -370,7 +368,7 @@ void func(int sockfd) {
             n_read = tls_ciphertext_parse(buffer, &application_keys.server_traffic, &record);
             assert(n_read > 0);
             buffer = buffer_slice(buffer, n_read);
-            printf("<<< %s [%zu] \n", content_type_str(record.type), n_read);
+            printf("<<< %-20s [%03zu bytes] \n", content_type_str(record.type), n_read);
             if (record.type == CONTENT_TYPE_APPLICATION_DATA) {
                 printf("%.*s\n", record.length, record.fragment);
             } else if (record.type == CONTENT_TYPE_ALERT) {
